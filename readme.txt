@@ -8,6 +8,13 @@
 Library: http://dev.maxmind.com/geoip/legacy/downloadable/
 Database: http://dev.maxmind.com/geoip/legacy/geolite/
 
+DataBases is placement in {EE}/lib/geoip
+You can use 3 types of databases.
+1. Countries - GeoIP.dat
+2. Cities Lite - GeoLiteCity.dat
+3. Cities (Paid) - GeoIPCity.dat (not included)
+Extension itself selects database depending on the existing files.
+
 Information is added to the global variables.
 
 Usage:
