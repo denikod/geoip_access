@@ -428,7 +428,8 @@ class Geoip_access_ext {
 			&& count($this->current['black_c'])>0
 			&& in_array(ee()->config->_global_vars['geo_code'], $this->current['black_c']) )
 		{
-			exit(isset($this->current['tmpl_off'])?$this->current['tmpl_off']:"");
+			if( isset($this->current['tmpl_off']) ) echo $this->current['tmpl_off'];
+			exit();
 			return TRUE;
 		}
 	}
@@ -514,6 +515,15 @@ class Geoip_access_ext {
 		$this->EE->table->add_row(array(
 			array('data' => lang('tmpl_access_denied'), 'class' => "tableHeadingAlt"),
 			array('data' => "<textarea rows='8' name='tmpl_off'>".(( ! isset($current['tmpl_off'])) ? '' : $current['tmpl_off'])."</textarea>")
+		));
+
+
+		// Block categories
+		$field = "";
+		$field .= "<button type='button'>Add</button>";
+		$this->EE->table->add_row(array(
+			array('data' => lang('block_cats'), 'class' => "tableHeadingAlt"),
+			array('data' => $field)
 		));
 
 		// Generate table
