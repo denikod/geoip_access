@@ -439,6 +439,29 @@ class Geoip_access_ext {
 	
 	function settings_form($current)
 	{
+		// AJAX Actions
+		if( ee()->input->get('act')=='ajax' )
+		{
+			//BASE.AMP.'C=addons_extensions'.AMP.'M=extension_settings'.AMP.'file=geoip_access&act=ajax'
+			
+			if( ee()->input->get('get')=='regions' && $country = ee()->input->get('country') )
+			{
+				global $GEOIP_REGION_NAME;
+
+				include(PATH_THIRD."geoip_access/geoip/geoipregionvars.php");
+				$regions = array();
+				if( isset($GEOIP_REGION_NAME[$country]) ) $regions = $GEOIP_REGION_NAME[$country];
+				
+				echo json_encode($regions);
+				exit();
+			}
+
+			//echo json_encode($this->countries);
+			exit();
+		}
+
+
+
 		if( ! function_exists('geoip_database_info') )
 		{
 			if( ! class_exists('GeoIP') )
@@ -518,11 +541,44 @@ class Geoip_access_ext {
 		));
 
 
+
+
 		// Block categories
-		$field = "";
-		$field .= "<button type='button'>Add</button>";
+		$field = <<<HTML
+		<div class="mor">
+		<div class='geo_rules'>
+			<table class="cloneable row-sortable">
+				<thead>
+					<tr>
+						<th scope="col" class="{sorter: false}">&nbsp;</th>
+						<th scope="col">Location</th>
+						<th scope="col">Category</th>
+						<th scope="col">Rule</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td class='dragHandle'><span class='sort icon'>Drag to reorder</span></td>
+						<td><div class="location"><input class="country" type="hidden" name="country" value="US" /><input class="region" type="hidden" name="region" value="IL" /><span class='title'>USA / Illinois</span></div></td>
+						<td><select><option>Category</option></select></td>
+						<td>Block | Allow</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		</div>
+		<div class="actions">
+			<button type='button' class='icon add'>Add rule</button>
+		</div>
+<style>
+.geo_rules .location .title {border-bottom:1px dashed #46BDEF; cursor: pointer;}
+.geo_rules .location .locate {margin-top:5px; background: #ffffff; border: 1px solid; display: block; padding: 10px; width: 250px;}
+.geo_rules .location .locate select {width:100%;}
+</style>
+HTML;
+		//$field .= "";
 		$this->EE->table->add_row(array(
-			array('data' => lang('block_cats'), 'class' => "tableHeadingAlt"),
+			array('data' => lang('geo_rules'), 'class' => "tableHeadingAlt"),
 			array('data' => $field)
 		));
 
@@ -532,6 +588,180 @@ class Geoip_access_ext {
     	$ret .= form_submit('submit', lang('submit'), 'class="submit"');
 
     	$ret .= form_close();
+
+    	$ajax_url = str_replace('&amp;', '&', BASE).'&C=addons_extensions&M=extension_settings&file=geoip_access&act=ajax';
+    	$json_countries = json_encode($this->countries);
+
+    	$ret .= <<<JAVASCRIPT
+<script type="text/javascript" charset="utf-8">
+	jQuery.fn.geo_location_field = function(options){
+		var countries = $json_countries;
+		var options = jQuery.extend({
+			debug: false,
+			trigger: '.title'
+		}, options);
+		
+		if( options.debug ) console.log('Geo location field: Start');
+
+		tools = {
+			countries: function(){
+				var fld = $("<select><option value=''>Country</option><option value=''>--</option></select>"); // <option value='ALL'>All countries</option>
+				$.each(countries, function(code, title){
+					fld.append("<option value='"+code+"'>"+title+"</option>");
+				});
+				return fld;
+			},
+			load_regions: function(code, fnc){
+				$.get('$ajax_url'+'&get=regions&country='+code, function(data){
+					var fld = $("<select><option value=''>All regions</option><option value=''>--</option></select>");
+					data = $.parseJSON(data);
+					$.each(data, function(code, title){
+						fld.append("<option value='"+code+"'>"+title+"</option>");
+					});
+
+					if( typeof(fnc)=='function' ) fnc(fld);
+					//return fld;
+				});
+			}
+		};
+
+		return this.each(function(){
+			var fld = $(this);
+
+			trigger = fld.find(options.trigger).length ? fld.find(options.trigger) : fld;
+			trigger.click(function(){
+				
+				if( fld.find('.locate').length ) return false;
+
+				// Initialize template
+				var locate = $("<div class='locate'><div class='select'></div><div class='actions'><button class='ok' type='button'>Ok</button><button class='cancel' type='button'>Cancel</button></div></div>").hide();
+				var locate_select = locate.find(".select");
+					
+				var country = tools.countries();
+				locate_select.append(country)
+
+				var region = "";
+				country.change(function(){
+					console.log('countries change', country.val());
+					
+					if( typeof(region)=='object' ) region.remove();
+					if( country.val()!='' && country.val()!='ALL' )
+					{
+						tools.load_regions(country.val(), function(obj){
+							region = obj;
+							locate_select.append(region);
+
+							region.change(function(){
+								console.log('region change', region.val());
+							});
+						});
+					}
+				});
+
+				// Include location select
+				fld.append(locate);
+				locate.slideDown('fast');
+				
+				// Save location and destroy form
+				locate.find('.actions .ok').click(function(e){
+					var location_title = '';
+					if( fld.find('input.country').length )
+					{
+						fld.find('input.country').val( country.val() );
+						location_title += country.find('option:selected').text();
+					} else console.log('Error saving country!', country.val() );
+					if( typeof(region) == 'object' )
+					{
+						if( fld.find('input.region').length )
+						{
+							location_title += ' / ' + region.find('option:selected').text();
+							fld.find('input.region').val( region.val() );
+						} else console.log('Error saving region!', region.val() );
+					}
+
+					fld.find('>.title').html(location_title);
+
+					locate.remove();
+					e.stopPropagation();
+				});
+				
+				// Cancel select
+				locate.find('.actions .cancel').click(function(e){
+					locate.remove();
+					e.stopPropagation();
+				});
+			});
+		});
+	};
+$(function(){
+
+	/*$.get('$ajax_url', function(data){
+		console.log($.parseJSON(data));
+	});*/
+
+	$(".geo_rules > table").NSM_Cloneable({
+		addTrigger: $(".actions .add"),
+		appendTarget: '>tbody',
+		cloneTemplate: $('<tr><td class="dragHandle"><span class="sort icon">Drag to reorder</span></td><td><div class="location"><input class="country" type="hidden" name="country" value="" /><input class="region" type="hidden" name="region" value="" /><span class="title">Select location</span></div></td><td><table class="rules row-sortable"><tbody></tbody></table><div class="actions"></div></td><td><span class="icon delete" type="button">Удалить</span></td></tr>')
+	})
+	//.NSM_UpdateInputsOnChange({inputNamePrefix:"tmpl_rewrite", targetSelector: '>tbody>tr'})
+	.tableDnD({dragHandle:'dragHandle'})
+	.bind("addCloneEnd.NSM_Cloneable", function(e, clone){ 
+		templateRules(clone);
+		$(this).trigger("update").tableDnDUpdate();
+	})
+	.bind("deleteCloneEnd.NSM_Cloneable", function(e, clone){ 
+		$(this).trigger("update").tableDnDUpdate();
+	});
+	
+	// Templates each
+	$(".geo_rules > table > tbody > tr").each(function(){
+		templateRules($(this));
+		//$(this).find('tbody tr').DC_UpdateIndexes({indexCount:2});
+	});
+
+
+
+	function templateRules(tmpl)
+	{
+		var table = tmpl.find('table:first');
+		var actions = tmpl.find('.actions');
+
+		console.log(tmpl);
+
+		tmpl.find('.location').geo_location_field();
+
+		/*tmpl.find('.location .sel').click(function(){
+			var _this = $(this);
+			var name = _this.find('input').attr('name');
+			var sel = $("<select name='"+name+"'><option value=''>Country</option><option value=''>--</option></select>").appendTo(_this.parent());
+
+			$.each(countries, function(code, title){
+				sel.append("<option value='"+code+"'>"+title+"</option>");
+			});
+
+			var cancel = $("<a>Cancel</a>").appendTo(_this.parent());
+			cancel.click(function(){
+				_this.find('input').attr('name', _this.find('input').data('name'));
+				_this.show();
+				sel.remove();
+				cancel.remove();
+			});
+
+			_this.find('input').data('name', _this.find('input').attr('name'));
+			_this.find('input').removeAttr('name');
+			_this.hide();
+			console.log('hide .sel');
+
+			sel.change(function(){
+				console.log('load states');
+			});
+
+		});*/
+	}
+});
+</script>
+JAVASCRIPT;
 
     	return $ret;
 	}
