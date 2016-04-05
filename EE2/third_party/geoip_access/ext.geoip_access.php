@@ -557,12 +557,12 @@ class Geoip_access_ext {
 					</tr>
 				</thead>
 				<tbody>
-					<tr>
+					<!-- <tr>
 						<td class='dragHandle'><span class='sort icon'>Drag to reorder</span></td>
 						<td><div class="location"><input class="country" type="hidden" name="country" value="US" /><input class="region" type="hidden" name="region" value="IL" /><span class='title'>USA / Illinois</span></div></td>
 						<td><select><option>Category</option></select></td>
 						<td>Block | Allow</td>
-					</tr>
+					</tr> -->
 				</tbody>
 			</table>
 		</div>
@@ -591,6 +591,27 @@ HTML;
 
     	$ajax_url = str_replace('&amp;', '&', BASE).'&C=addons_extensions&M=extension_settings&file=geoip_access&act=ajax';
     	$json_countries = json_encode($this->countries);
+
+		ee()->load->library('api');
+		ee()->api->instantiate('channel_categories');
+
+		$select_category = '<select name="rules[][cat_id]"><option value="">--</option>';
+		foreach( ee()->db->select('group_id, group_name')->get('category_groups')->result() as $group )
+		{
+			$select_category .= '<optgroup label="'.$group->group_name.'">';
+			foreach( ee()->api_channel_categories->category_tree($group->group_id) as $cat )
+			{
+				$select_category .= '<option value="'.$cat[0].'">'.str_repeat('&nbsp;', ($cat[5]-1)*3).$cat[1].'</option>';
+			}
+			$select_category .= '</optgroup>';
+		}
+		$select_category .= '</select>';
+
+
+		// $select_category = '<select name="rules[][cat_id]"><option value="">--</option>';
+		// $q = ee()->db->select('cat_id, cat_name')->get('categories');
+		// foreach( $q->result() as $row ) $select_category .= '<option value="'.$row->cat_id.'">'.$row->cat_name.'</option>';
+		// $select_category .= '</select>';
 
     	$ret .= <<<JAVASCRIPT
 <script type="text/javascript" charset="utf-8">
@@ -702,9 +723,9 @@ $(function(){
 	$(".geo_rules > table").NSM_Cloneable({
 		addTrigger: $(".actions .add"),
 		appendTarget: '>tbody',
-		cloneTemplate: $('<tr><td class="dragHandle"><span class="sort icon">Drag to reorder</span></td><td><div class="location"><input class="country" type="hidden" name="country" value="" /><input class="region" type="hidden" name="region" value="" /><span class="title">Select location</span></div></td><td><table class="rules row-sortable"><tbody></tbody></table><div class="actions"></div></td><td><span class="icon delete" type="button">Удалить</span></td></tr>')
+		cloneTemplate: $('<tr><td class="dragHandle"><span class="sort icon">Drag to reorder</span></td><td><div class="location"><input class="country" type="hidden" name="rules[][country]" value="" /><input class="region" type="hidden" name="rules[][region]" value="" /><span class="title">Select location</span></div></td><td>$select_category</td><td><span class="icon delete" type="button">Удалить</span></td></tr>')
 	})
-	//.NSM_UpdateInputsOnChange({inputNamePrefix:"tmpl_rewrite", targetSelector: '>tbody>tr'})
+	.NSM_UpdateInputsOnChange({inputNamePrefix:"tmpl_rewrite", targetSelector: '>tbody>tr'})
 	.tableDnD({dragHandle:'dragHandle'})
 	.bind("addCloneEnd.NSM_Cloneable", function(e, clone){ 
 		templateRules(clone);
